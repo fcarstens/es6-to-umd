@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "babel": "^4.7.2",
-    "esperanto": "^0.6.15"
+    "esperanto": "^0.6.15",
+    "mkdirp": "^0.5.1"
   }
 }

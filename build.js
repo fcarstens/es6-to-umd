@@ -1,63 +1,32 @@
-var fs = require( "fs" );
-var esperanto = require( "esperanto" );
-var babel = require( "babel" );
+var mkdirp = require("mkdirp");
+var esperanto = require("esperanto");
+var fs = require("fs");
+var babel = require("babel");
 
-try {
-	fs.mkdirSync( "tmp" );
-	fs.mkdirSync( "dist" );
-} catch( error ) {
-	// Just assume the directory exists
-}
-
-// Transpile each source file through Babel
-var helpers = {};
-fs.readdirSync( "src" ).forEach(function( file ) {
-	var code = fs.readFileSync( "src/" + file );
-	var transformed = babel.transform( code, {
-
-		// Don't transpile modules, we'll let esperanto do that
-		blacklist: [
-			"es6.modules",
-			"useStrict"
-		],
-
-		// Babel normally sticks all the required helpers at the top of the module.
-		// This could result in a lot of duplication since we're transpiling
-		// individual source files. So we tell Babel to use extenral helpers and
-		// to return the list of helpers that each module uses.
-		externalHelpers: true,
-		returnUsedHelpers: true
-	});
-
-	// We then merge the list of helpers from each source file. We'll use this
-	// list later to generate the helpers once for the full build.
-	transformed.usedHelpers.forEach(function( helper ) {
-		helpers[ helper ] = true;
-	});
-
-	// Store the tranpsiled modules in the tmp directory
-	fs.writeFileSync( "tmp/" + file, transformed.code );
-});
+mkdirp.sync("dist");
 
 // Bundle all the transpiled modules using esperanto
 esperanto.bundle({
-	base: "tmp",
-	entry: "app.js"
-})
-	.then(function (bundle) {
+    base: "src",
+    entry: "app.js"
+}).then(function (bundle) {
 
-		// Then we generate the UMD bundle, `name` is the name of the module
-		// that we're bundling (the global variable that gets created) when
-		// using <script>.
-		var umd = bundle.toUmd({
-			name: "test"
-		});
+    // Then we generate the UMD bundle, `name` is the name of the module
+    // that we're bundling (the global variable that gets created) when
+    // using <script>.
+    var umd = bundle.toUmd({
+        name: "test"
+    });
 
-		// Insert the babel helpers
-		helpers = babel.buildExternalHelpers( Object.keys( helpers ), "var" );
-		umd.code = umd.code.replace( "/** babel-helpers **/", helpers );
+    // Transpile the bundle with Babel
+    var transformed = babel.transform(umd.code, {
+        blacklist: [
+            "useStrict"
+        ]
+    });
 
-		// Save the generated bundle in the dist directory
-		fs.writeFileSync( "dist/test.js", umd.code );
-	})
-	.catch(console.error);
+    //Don't expose Babel helpers globally
+    var content = "(function() {\n" + transformed.code + "\n})();";
+    // Save the generated bundle in the dist directory
+    fs.writeFileSync("dist/test.js", content);
+}).catch(console.error);
